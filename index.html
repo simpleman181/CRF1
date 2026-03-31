@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CRF — Clinical Data Entry</title>
+<script>
+// ── EMBEDDED CONFIG — edit these 2 values ──
+var SUPABASE_URL  = "https://YOUR_PROJECT_ID.supabase.co";
+var SUPABASE_ANON = "YOUR_ANON_PUBLIC_KEY";
+</script>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#f5f4f0;--surface:#fff;--border:#d0cdc5;--border-strong:#9a9690;
+    --accent:#1a4a8a;--accent-light:#e8eef8;--accent2:#b84c1a;
+    --text:#1c1b19;--text-muted:#6b6862;--success:#2a7a4b;--warning:#c4760f;
+    --mandatory:#b84c1a;--row-alt:#fafaf8;--input-bg:#fcfcfb;--radius:4px;
+    --shadow:0 1px 4px rgba(0,0,0,.08);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--text);font-size:13.5px;line-height:1.5}
+
+  .top-bar{background:var(--accent);color:#fff;padding:10px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.18)}
+  .top-bar .logo{font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;letter-spacing:.08em;opacity:.9}
+  .version-badge{font-family:'IBM Plex Mono',monospace;font-size:11px;background:rgba(255,255,255,.15);padding:2px 8px;border-radius:12px;margin-left:10px}
+  .bar-actions{display:flex;gap:8px;align-items:center}
+  .top-bar button{font-size:12px;font-family:'IBM Plex Sans',sans-serif;padding:5px 14px;border-radius:3px;border:1.5px solid rgba(255,255,255,.4);background:transparent;color:#fff;cursor:pointer;font-weight:500;transition:background .15s}
+  .top-bar button:hover{background:rgba(255,255,255,.18)}
+  .top-bar button.primary-btn{background:#fff;color:var(--accent);border-color:#fff;font-weight:600}
+  .top-bar button.primary-btn:hover{background:#e8eef8}
+  .top-bar a.admin-link{font-size:11px;color:rgba(255,255,255,.65);text-decoration:none;margin-left:8px;font-family:'IBM Plex Mono',monospace;padding:4px 10px;border:1px solid rgba(255,255,255,.3);border-radius:3px;transition:all .15s}
+  .top-bar a.admin-link:hover{color:#fff;border-color:rgba(255,255,255,.7)}
+
+  .container{max-width:1100px;margin:28px auto 60px;padding:0 20px}
+  .notice{background:#fff8ed;border:1px solid #f0c060;border-radius:var(--radius);padding:10px 16px;font-size:12.5px;color:#7a5800;margin-bottom:18px;display:flex;gap:10px;align-items:flex-start}
+
+  .section-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:20px;box-shadow:var(--shadow);overflow:hidden}
+  .section-header{background:var(--accent);color:#fff;padding:10px 18px;font-size:13px;font-weight:600;letter-spacing:.04em;display:flex;align-items:center;gap:8px}
+  .sec-num{background:rgba(255,255,255,.2);border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:11px;flex-shrink:0}
+  .section-sub-header{background:#e8eef8;color:var(--accent);padding:7px 18px;font-size:12px;font-weight:600;border-bottom:1px solid var(--border);letter-spacing:.03em}
+  .section-body{padding:16px 18px}
+
+  .form-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px 16px}
+  .form-grid.cols-2{grid-template-columns:repeat(2,1fr)}
+  .form-grid.cols-3{grid-template-columns:repeat(3,1fr)}
+  .form-grid.cols-4{grid-template-columns:repeat(4,1fr)}
+  .form-field{display:flex;flex-direction:column;gap:4px}
+  .form-field.full-width{grid-column:1/-1}
+  .form-field.span-2{grid-column:span 2}
+
+  label{font-size:11.5px;color:var(--text-muted);font-weight:500;letter-spacing:.02em}
+  label .req{color:var(--mandatory);margin-left:2px;font-weight:700}
+  label .tag{display:inline-block;font-size:9.5px;background:var(--accent-light);color:var(--accent);border-radius:2px;padding:1px 5px;margin-left:5px;font-family:'IBM Plex Mono',monospace;vertical-align:middle}
+  label .tag.auto{background:#e6f4ea;color:var(--success)}
+
+  input[type=text],input[type=date],input[type=number],input[type=email],input[type=tel],select,textarea{width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--input-bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;font-size:13px;transition:border-color .15s,box-shadow .15s;-webkit-appearance:none}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(26,74,138,.1)}
+  input[readonly],input.auto-filled{background:#f0f4fb;color:var(--accent);font-style:italic;border-style:dashed}
+  select{cursor:pointer}
+  textarea{resize:vertical;min-height:60px}
+
+  .radio-group{display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:6px 0}
+  .radio-group label{display:flex;align-items:center;gap:5px;color:var(--text);font-size:13px;cursor:pointer;font-weight:400}
+  .radio-group input[type=radio]{width:14px;height:14px;cursor:pointer;accent-color:var(--accent)}
+
+  .score-table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:4px}
+  .score-table th{background:#e8eef8;color:var(--accent);padding:7px 10px;text-align:left;font-weight:600;font-size:12px;border:1px solid var(--border)}
+  .score-table td{padding:6px 10px;border:1px solid var(--border);vertical-align:middle}
+  .score-table tr:nth-child(even) td{background:var(--row-alt)}
+  .score-options{display:flex;gap:6px;flex-wrap:wrap}
+  .score-option{display:flex;align-items:center;gap:4px;background:#f2f6fc;border:1px solid #c5d5ec;border-radius:3px;padding:3px 8px;cursor:pointer;font-size:12px;color:var(--text-muted);transition:all .12s;user-select:none}
+  .score-option input[type=radio]{accent-color:var(--accent);width:12px;height:12px}
+  .score-option:has(input:checked){background:var(--accent);color:#fff;border-color:var(--accent)}
+  .score-total{font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;color:var(--accent);background:var(--accent-light);padding:4px 10px;border-radius:3px;text-align:center}
+
+  .vitals-table{width:100%;border-collapse:collapse;font-size:13px}
+  .vitals-table th{background:#e8eef8;color:var(--accent);padding:8px 12px;font-weight:600;font-size:12px;border:1px solid var(--border);text-align:left}
+  .vitals-table td{padding:6px 10px;border:1px solid var(--border);vertical-align:middle}
+  .vitals-table tr:nth-child(even) td{background:var(--row-alt)}
+  .vitals-table input{max-width:140px}
+
+  .rep-row{display:grid;gap:8px;align-items:end;background:#fafaf8;border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;margin-bottom:8px;position:relative}
+  .rep-row .row-num{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text-muted);background:var(--border);border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;position:absolute;top:8px;left:8px}
+  .rep-row.has-num{padding-left:36px}
+  .btn-add,.btn-del{font-size:11.5px;padding:5px 12px;border-radius:3px;border:1.5px solid;cursor:pointer;font-family:'IBM Plex Sans',sans-serif;font-weight:500;transition:all .12s}
+  .btn-add{border-color:var(--accent);color:var(--accent);background:#fff}
+  .btn-add:hover{background:var(--accent);color:#fff}
+  .btn-del{border-color:#d44;color:#d44;background:#fff;padding:3px 8px;font-size:11px}
+  .btn-del:hover{background:#d44;color:#fff}
+  .rep-actions{margin-top:8px;display:flex;gap:8px;align-items:center}
+
+  .compliance-table{width:100%;border-collapse:collapse;font-size:12.5px}
+  .compliance-table th{background:#e8eef8;color:var(--accent);padding:7px 10px;font-size:12px;font-weight:600;border:1px solid var(--border);text-align:center}
+  .compliance-table th.row-header{text-align:left}
+  .compliance-table td{padding:6px 8px;border:1px solid var(--border);text-align:center;vertical-align:middle}
+  .compliance-table td.row-label{text-align:left;font-weight:500;background:#f5f6fb;color:var(--text-muted);font-size:12px}
+  .compliance-table input[type=checkbox]{width:15px;height:15px;accent-color:var(--accent);cursor:pointer}
+
+  .palatability-scale{display:flex;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-top:8px}
+  .pal-option{flex:1;display:flex;flex-direction:column;align-items:center;padding:12px 8px 8px;cursor:pointer;border-right:1px solid var(--border);transition:background .12s;position:relative}
+  .pal-option:last-child{border-right:none}
+  .pal-option input[type=radio]{position:absolute;opacity:0}
+  .pal-option:has(input:checked){background:var(--accent-light)}
+  .pal-option .pal-face{font-size:26px;margin-bottom:4px}
+  .pal-option .pal-label{font-size:11px;color:var(--text-muted);text-align:center;line-height:1.3}
+  .pal-option:has(input:checked) .pal-label{color:var(--accent);font-weight:600}
+
+  .ae-table{width:100%;border-collapse:collapse;font-size:12.5px}
+  .ae-table th{background:#e8eef8;color:var(--accent);padding:7px 10px;font-size:12px;font-weight:600;border:1px solid var(--border);text-align:left}
+  .ae-table td{padding:6px 8px;border:1px solid var(--border);vertical-align:middle}
+  .ae-table input,.ae-table select{font-size:12px;padding:5px 7px}
+
+  .concom-table{width:100%;border-collapse:collapse;font-size:12.5px}
+  .concom-table th{background:#e8eef8;color:var(--accent);padding:7px 10px;font-size:12px;font-weight:600;border:1px solid var(--border);text-align:left}
+  .concom-table td{padding:5px 7px;border:1px solid var(--border);vertical-align:middle}
+  .concom-table input{font-size:12px;padding:4px 6px}
+
+  .form-footer{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;box-shadow:var(--shadow)}
+  .footer-meta{font-size:11.5px;color:var(--text-muted);font-family:'IBM Plex Mono',monospace}
+  .footer-actions{display:flex;gap:10px;flex-wrap:wrap}
+  .btn-primary,.btn-secondary,.btn-excel,.btn-print{font-family:'IBM Plex Sans',sans-serif;font-size:13px;font-weight:600;padding:8px 20px;border-radius:3px;cursor:pointer;border:none;transition:all .15s}
+  .btn-primary{background:var(--accent);color:#fff}
+  .btn-primary:hover{background:#153d74}
+  .btn-secondary{background:#fff;color:var(--accent);border:1.5px solid var(--accent)}
+  .btn-secondary:hover{background:var(--accent-light)}
+  .btn-excel{background:#1a7a3a;color:#fff}
+  .btn-excel:hover{background:#145f2d}
+  .btn-print{background:#5a5a5a;color:#fff}
+  .btn-print:hover{background:#3a3a3a}
+
+  /* Submit modal overlay */
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;display:none;align-items:center;justify-content:center}
+  .modal-overlay.active{display:flex}
+  .modal-box{background:#fff;border-radius:6px;padding:28px 32px;max-width:420px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,.2);text-align:center}
+  .modal-box h3{font-size:17px;color:var(--accent);margin-bottom:10px}
+  .modal-box p{font-size:13px;color:var(--text-muted);margin-bottom:20px;line-height:1.6}
+  .modal-box .modal-btns{display:flex;gap:10px;justify-content:center}
+  .modal-box .spinner{width:40px;height:40px;border:4px solid #e8eef8;border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 16px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  #toast{position:fixed;bottom:30px;right:30px;background:#1c1b19;color:#fff;padding:12px 20px;border-radius:var(--radius);font-size:13px;font-weight:500;opacity:0;transform:translateY(10px);transition:all .25s;z-index:1000;pointer-events:none;max-width:340px}
+  #toast.show{opacity:1;transform:translateY(0)}
+  #toast.error{background:#8a1a1a}
+  #toast.success{background:#1a6a3a}
+
+  .info-note{font-size:11.5px;color:var(--text-muted);background:#f7f7f5;border-left:3px solid var(--border-strong);padding:6px 10px;border-radius:0 3px 3px 0;margin-top:8px}
+  .mt-8{margin-top:8px} .mt-12{margin-top:12px}
+
+  @media print{.top-bar,.form-footer,.btn-add,.btn-del{display:none !important} .section-card{box-shadow:none;page-break-inside:avoid} body{background:#fff;font-size:12px} .container{max-width:100%;margin:0;padding:0 10px}}
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+  <div style="display:flex;align-items:center;gap:14px">
+    <span class="logo">◼ CRF — CLINICAL DATA ENTRY</span>
+    <span class="version-badge" id="versionLabel">v1.0</span>
+  </div>
+  <div class="bar-actions">
+    <button onclick="saveDraft()">💾 Save Draft</button>
+    <button onclick="exportCSV()" style="background:rgba(26,122,58,.3);border-color:#4caf80">📊 Export CSV</button>
+    <button onclick="printForm()">🖨 Print</button>
+    <button class="primary-btn" onclick="openSubmitModal()">✔ Submit to Database</button>
+    <a href="admin.html" class="admin-link">Admin ▶</a>
+  </div>
+</div>
+
+<div class="container">
+  <div class="notice">
+    <span>ℹ️</span>
+    <span>Fields marked <strong style="color:var(--mandatory)">*</strong> are mandatory. Fields marked <strong style="color:var(--accent)">#</strong> use dropdowns. Age auto-calculated from DOB. Study Name and Centre details auto-populated on ID selection. <strong>Submit to Database</strong> sends data live to the admin dashboard.</span>
+  </div>
+
+  <!-- S1: STUDY & SITE -->
+  <div class="section-card">
+    <div class="section-header"><span class="sec-num">1</span> Study &amp; Site Details</div>
+    <div class="section-body">
+      <div class="form-grid cols-4">
+        <div class="form-field">
+          <label>*Study Name</label>
+          <input type="text" id="studyName" readonly class="auto-filled" placeholder="Auto-populated">
+        </div>
+        <div class="form-field">
+          <label>*Study ID <span class="tag">#</span></label>
+          <select id="studyId" onchange="onStudySelect()">
+            <option value="">— Select —</option>
+            <option value="STD-001">STD-001</option>
+            <option value="STD-002">STD-002</option>
+            <option value="STD-003">STD-003</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label>*Centre ID <span class="tag">#</span></label>
+          <select id="centreId" onchange="onCentreSelect()">
+            <option value="">— Select —</option>
+            <option value="CTR-01">CTR-01 — Mumbai North</option>
+            <option value="CTR-02">CTR-02 — Delhi Central</option>
+            <option value="CTR-03">CTR-03 — Bangalore East</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label>*Location <span class="tag">#</span></label>
+          <input type="text" id="location" readonly class="auto-filled" placeholder="Auto-populated">
+        </div>
+        <div class="form-field span-2">
+          <label>*Investigator's Name</label>
+          <input type="text" id="invName" readonly class="auto-filled" placeholder="Auto-populated from Centre ID">
+        </div>
+        <div class="form-field span-2">
+          <label>Clinic Name &amp; Address</label>
+          <input type="text" id="clinicAddr" readonly class="auto-filled" placeholder="Auto-populated from Centre ID">
+        </div>
+        <div class="form-field"><label>Telephone No.</label><input type="tel" id="telNo" placeholder="STD + number"></div>
+        <div class="form-field"><label>*Mobile No.</label><input type="tel" id="mobNo" placeholder="10-digit mobile"></div>
+        <div class="form-field"><label>*E-mail</label><input type="email" id="emailInv" placeholder="investigator@clinic.com"></div>
+        <div class="form-field"><label>*CRC Name (Mr./Ms.)</label><input type="text" id="crcName" placeholder="CRC full name"></div>
+        <div class="form-field"><label>*CRC Mobile No.</label><input type="tel" id="crcMob" placeholder="10-digit mobile"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- S2: PATIENT -->
+  <div class="section-card">
+    <div class="section-header"><span class="sec-num">2</span> Patient Details</div>
+    <div class="section-body">
+      <div class="form-grid cols-4">
+        <div class="form-field"><label>*Subject No. / ID</label><input type="text" id="subjectId" placeholder="e.g. SUB-001"></div>
+        <div class="form-field span-2"><label>Subject's Initials <small style="font-style:italic;color:var(--text-muted)">(initials only)</small></label><input type="text" id="subjectInitials" placeholder="e.g. A.B.C." maxlength="10"></div>
+        <div class="form-field"><label>*Sex</label>
+          <div class="radio-group">
+            <label><input type="radio" name="sex" value="F"> Female</label>
+            <label><input type="radio" name="sex" value="M"> Male</label>
+            <label><input type="radio" name="sex" value="O"> Others</label>
+          </div>
+        </div>
+        <div class="form-field"><label>Date of Birth</label><input type="date" id="dob" onchange="calcAge()"></div>
+        <div class="form-field"><label>Enrolment Date</label><input type="date" id="enrolDate" onchange="calcAge()"></div>
+        <div class="form-field"><label>Age (months) <span class="tag auto">AUTO</span></label><input type="number" id="ageMonths" readonly class="auto-filled" placeholder="Calculated"></div>
+        <div class="form-field"><label>Age (years) <span class="tag auto">AUTO</span></label><input type="number" id="ageYears" readonly class="auto-filled" placeholder="Calculated"></div>
+        <div class="form-field"><label>*Weight (Kg)</label><input type="number" id="weightPt" step="0.1" min="1" max="200" placeholder="kg"></div>
+        <div class="form-field"><label>*Height (cm) <span class="tag auto">CONVERTS</span></label><input type="number" id="heightCm" step="0.1" min="30" max="250" placeholder="cm" oninput="convertHeight()"></div>
+        <div class="form-field"><label>Height (ft/in) <span class="tag auto">AUTO</span></label><input type="text" id="heightFt" readonly class="auto-filled" placeholder="Calculated"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- S3: MEDICAL HISTORY -->
+  <div class="section-card">
+    <div class="section-header"><span class="sec-num">3</span> Medical History</div>
+    <div class="section-body">
+      <div class="repeatable-section" id="medHistRows">
+        <div class="rep-row has-num" style="grid-template-columns:1fr 3fr 160px 160px auto">
+          <span class="row-num">1</span>
+          <div class="form-field"><label>Condition</label><input type="text" placeholder="e.g. Dengue"></div>
+          <div class="form-field"><label>Start Date</label><input type="date"></div>
+          <div class="form-field"><label>Stop Date</label><input type="date"></div>
+          <div style="display:flex;align-items:flex-end;padding-bottom:1px"><button class="btn-del" onclick="delRow(this)">✕</button></div>
+        </div>
+      </div>
+      <div class="rep-actions"><button class="btn-add" onclick="addMedHist()">+ Add Row</button></div>
+    </div>
+  </div>
+
+  <!-- S4: CONCURRENT CONDITIONS -->
+  <div class="section-card">
+    <div class="section-header"><span class="sec-num">4</span> Concurrent Conditions</div>
+    <div class="section-body">
+      <div class="repeatable-section" id="concRows">
+        <div class="rep-row has-num" style="grid-template-columns:1fr 3fr 160px 160px 110px auto">
+          <span class="row-num">1</span>
+          <div class="form-field"><label>Condition</label><input type="text" placeholder="Condition name"></div>
+          <div class="form-field"><label>Start Date</label><input type="date"></div>
+          <div class="form-field"><label>Stop Date</label><input type="date"></div>
+          <div class="form-field"><label>Status</label><select><option value="">Select</option><option>Ongoing</option><option>Resolved</option></select></div>
+          <div style="display:flex;align-items:flex-end;padding-bottom:1px"><button class="btn-del" onclick="delRow(this)">✕</button></div>
+        </div>
+      </div>
+      <div class="rep-actions"><button class="btn-add" onclick="addConcRow()">+ Add Row</button></div>
+    </div>
+  </div>
+
+  <!-- S5: PHYSICAL EXAM -->
+  <div class="section-card">
+    <div class="section-header"><span class="sec-num">5</span> Physical Examination — First Visit (Day 1)</div>
+    <div class="section-body">
+      <div class="form-grid cols-3 mt-8">
+        <div class="form-field"><label>General Appearance</label><textarea id="pe_ga" rows="2" placeholder="NAD / findings"></textarea></div>
+        <div class="form-field"><label>CVS</label><textarea id="pe_cvs" rows="2" placeholder="NAD / findings"></textarea></div>
+        <div class="form-field"><label>RS</label><textarea id="pe_rs" rows="2" placeholder="NAD / findings"></textarea></div>
+        <div class="form-field"><label>GIT</label><textarea id="pe_git" rows="2" placeholder="NAD / findings"></textarea></div>
+        <div class="form-field"><label>CNS</label><textarea id="pe_cns" rows="2" placeholder="NAD / findings"></textarea></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- S6: VITALS D1 -->
+  <div class="section-card">
+    <div class="section-header"><span class="sec-num">6</span> Vitals — First Visit (Day 1)</div>
+    <div class="section-body">
+      <table class="vitals-table">
+        <thead><tr><th style="width:55%">Parameter</th><th>Value</th></tr></thead>
+        <tbody>
+          <tr><td>Weight (Kg)</td><td><input type="number" id="v1_weight" step="0.1" oninput="calcBMI('v1')"></td></tr>
+          <tr><td>BMI (Kg/m²) <span class="tag auto" style="display:inline-block;font-size:9.5px;padding:1px 5px">AUTO</span></td><td><input type="text" id="v1_bmi" readonly class="auto-filled" placeholder="Calculated"></td></tr>
+          <tr><td>Pulse Rate (per min)</td><td><input type="number" id="v1_pulse" min="30" max="200"></td></tr>
+          <tr><td>Temperature (°C)</td><td><input type="number" id="v1_temp" step="0.1" min="35" max="42"></td></tr>
+          <tr><td>Respiratory Rate (per min)</td><td><input type="number" id="v1_rr" min="5" max="60"></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- S7: CLINICAL SCORE D1 -->
+  <div class="section-card">
+    <div class="section-header"><span class="sec-num">7</span> Clinical Score — First Visit (Day 1)</div>
+    <div class="section-sub-header">General Clinical Signs &amp; Symptoms</div>
+    <div class="section-body">
+      <table class="score-table">
+        <thead><tr><th style="width:38%">Sign / Symptom</th><th>Score Options</th><th style="width:80px;text-align:center">Score</th></tr></thead>
+        <tbody id="d1GenBody">
+          <tr><td>Fever (Daily Peak)</td><td><div class="score-options">
+            <label class="score-option"><input type="radio" name="d1_fever" value="0" onchange="updateScores()"><span>0: Absent</span></label>
+            <label class="score-option"><input type="radio" name="d1_fever" value="1" onchange="updateScores()"><span>1: 37.1–38°C</span></label>
+            <label class="score-option"><input type="radio" name="d1_fever" value="2" onchange="updateScores()"><span>2: 38.1–39°C</span></label>
+            <label class="score-option"><input type="radio" name="d1_fever" value="3" onchange="updateScores()"><span>3: &gt;39°C</span></label>
+          </div></td><td><div class="score-total" id="d1_fever_score">—</div></td></tr>
+          <tr><td>Chills</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d1_chills" value="0" onchange="updateScores()"><span>0: Absent</span></label><label class="score-option"><input type="radio" name="d1_chills" value="1" onchange="updateScores()"><span>1: Present</span></label></div></td><td><div class="score-total" id="d1_chills_score">—</div></td></tr>
+          <tr><td>Headache</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d1_headache" value="0" onchange="updateScores()"><span>0: Absent</span></label><label class="score-option"><input type="radio" name="d1_headache" value="1" onchange="updateScores()"><span>1: Present</span></label></div></td><td><div class="score-total" id="d1_headache_score">—</div></td></tr>
+          <tr><td>Cough</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d1_cough" value="0" onchange="updateScores()"><span>0: Absent</span></label><label class="score-option"><input type="radio" name="d1_cough" value="1" onchange="updateScores()"><span>1: Present</span></label></div></td><td><div class="score-total" id="d1_cough_score">—</div></td></tr>
+          <tr><td>Rhinitis</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d1_rhinitis" value="0" onchange="updateScores()"><span>0: Absent</span></label><label class="score-option"><input type="radio" name="d1_rhinitis" value="1" onchange="updateScores()"><span>1: Present</span></label></div></td><td><div class="score-total" id="d1_rhinitis_score">—</div></td></tr>
+          <tr><td>Vomiting</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d1_vomit" value="0" onchange="updateScores()"><span>0: Absent</span></label><label class="score-option"><input type="radio" name="d1_vomit" value="1" onchange="updateScores()"><span>1: Present</span></label></div></td><td><div class="score-total" id="d1_vomit_score">—</div></td></tr>
+          <tr><td>Inappetence</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d1_inapp" value="0" onchange="updateScores()"><span>0: Absent</span></label><label class="score-option"><input type="radio" name="d1_inapp" value="1" onchange="updateScores()"><span>1: Present</span></label></div></td><td><div class="score-total" id="d1_inapp_score">—</div></td></tr>
+          <tr><td colspan="2" style="text-align:right;font-weight:600;font-size:12px;color:var(--accent)">General Subtotal:</td><td><div class="score-total" id="d1_gen_total">0</div></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="section-sub-header">Acute Pharyngitis</div>
+    <div class="section-body">
+      <table class="score-table">
+        <thead><tr><th style="width:38%">Sign / Symptom</th><th>Score Options</th><th style="width:80px;text-align:center">Score</th></tr></thead>
+        <tbody>
+          <tr><td>Sore Throat</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d1_sorethroat" value="0" onchange="updateScores()"><span>0: Absent</span></label><label class="score-option"><input type="radio" name="d1_sorethroat" value="2" onchange="updateScores()"><span>2: Present</span></label></div></td><td><div class="score-total" id="d1_sorethroat_score">—</div></td></tr>
+          <tr><td>Pharyngeal Erythema</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d1_phareryt" value="0" onchange="updateScores()"><span>0: Absent</span></label><label class="score-option"><input type="radio" name="d1_phareryt" value="2" onchange="updateScores()"><span>2: Present</span></label></div></td><td><div class="score-total" id="d1_phareryt_score">—</div></td></tr>
+          <tr><td>Tonsillar Enlargement</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d1_tonsil" value="0" onchange="updateScores()"><span>0: Absent</span></label><label class="score-option"><input type="radio" name="d1_tonsil" value="2" onchange="updateScores()"><span>2: Present</span></label></div></td><td><div class="score-total" id="d1_tonsil_score">—</div></td></tr>
+          <tr><td>Tonsillo-pharyngeal Exudates</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d1_exudate" value="0" onchange="updateScores()"><span>0: Absent</span></label><label class="score-option"><input type="radio" name="d1_exudate" value="2" onchange="updateScores()"><span>2: Present</span></label></div></td><td><div class="score-total" id="d1_exudate_score">—</div></td></tr>
+          <tr><td>Painful Cervical Lymphadenopathy</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d1_lymph" value="0" onchange="updateScores()"><span>0: Absent</span></label><label class="score-option"><input type="radio" name="d1_lymph" value="2" onchange="updateScores()"><span>2: Present</span></label></div></td><td><div class="score-total" id="d1_lymph_score">—</div></td></tr>
+          <tr><td colspan="2" style="text-align:right;font-weight:600;font-size:12px;color:var(--accent)">Pharyngitis Subtotal:</td><td><div class="score-total" id="d1_pharyn_total">0</div></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="section-sub-header">Acute Otitis Media</div>
+    <div class="section-body">
+      <table class="score-table">
+        <thead><tr><th style="width:38%">Sign / Symptom</th><th>Score Options</th><th style="width:80px;text-align:center">Score</th></tr></thead>
+        <tbody>
+          <tr><td>Bulging of Tympanic Membrane</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d1_bulge" value="0" onchange="updateScores()"><span>0: Absent</span></label><label class="score-option"><input type="radio" name="d1_bulge" value="1" onchange="updateScores()"><span>1: Present</span></label></div></td><td><div class="score-total" id="d1_bulge_score">—</div></td></tr>
+          <tr><td>Limited/Absent Mobility of TM</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d1_tmmob" value="0" onchange="updateScores()"><span>0: Absent</span></label><label class="score-option"><input type="radio" name="d1_tmmob" value="1" onchange="updateScores()"><span>1: Present</span></label></div></td><td><div class="score-total" id="d1_tmmob_score">—</div></td></tr>
+          <tr><td>Otalgia or Irritability</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d1_otalgia" value="0" onchange="updateScores()"><span>0: Absent</span></label><label class="score-option"><input type="radio" name="d1_otalgia" value="1" onchange="updateScores()"><span>1: Present</span></label></div></td><td><div class="score-total" id="d1_otalgia_score">—</div></td></tr>
+          <tr><td>Air Fluid Level Behind TM</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d1_airfluid" value="0" onchange="updateScores()"><span>0: Absent</span></label><label class="score-option"><input type="radio" name="d1_airfluid" value="1" onchange="updateScores()"><span>1: Present</span></label></div></td><td><div class="score-total" id="d1_airfluid_score">—</div></td></tr>
+          <tr><td>Erythema of TM</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d1_erythtm" value="0" onchange="updateScores()"><span>0: Absent</span></label><label class="score-option"><input type="radio" name="d1_erythtm" value="1" onchange="updateScores()"><span>1: Present</span></label></div></td><td><div class="score-total" id="d1_erythtm_score">—</div></td></tr>
+          <tr><td colspan="2" style="text-align:right;font-weight:600;font-size:12px;color:var(--accent)">Otitis Media Subtotal:</td><td><div class="score-total" id="d1_otitis_total">0</div></td></tr>
+          <tr style="background:#e8eef8"><td colspan="2" style="text-align:right;font-weight:700;font-size:13px;color:var(--accent)">🔢 TOTAL BASELINE SCORE:</td><td><div class="score-total" id="d1_grand_total" style="background:var(--accent);color:#fff;font-size:15px">0</div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- S8: VITALS D7 -->
+  <div class="section-card">
+    <div class="section-header"><span class="sec-num">8</span> Vitals — Follow-Up (Day 7 ± 1)</div>
+    <div class="section-body">
+      <table class="vitals-table">
+        <thead><tr><th style="width:55%">Parameter</th><th>Value</th></tr></thead>
+        <tbody>
+          <tr><td>Weight (Kg)</td><td><input type="number" id="v7_weight" step="0.1" oninput="calcBMI('v7')"></td></tr>
+          <tr><td>BMI (Kg/m²) <span class="tag auto" style="display:inline-block;font-size:9.5px;padding:1px 5px">AUTO</span></td><td><input type="text" id="v7_bmi" readonly class="auto-filled" placeholder="Calculated"></td></tr>
+          <tr><td>Pulse Rate (per min)</td><td><input type="number" id="v7_pulse" min="30" max="200"></td></tr>
+          <tr><td>Temperature (°C)</td><td><input type="number" id="v7_temp" step="0.1" min="35" max="42"></td></tr>
+          <tr><td>Respiratory Rate (per min)</td><td><input type="number" id="v7_rr" min="5" max="60"></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- S9: CLINICAL SCORE D7 -->
+  <div class="section-card">
+    <div class="section-header"><span class="sec-num">9</span> Clinical Score — Follow-Up (Day 7 ± 1)</div>
+    <div class="section-sub-header">General Clinical Signs &amp; Symptoms</div>
+    <div class="section-body">
+      <table class="score-table">
+        <thead><tr><th style="width:38%">Sign / Symptom</th><th>Score Options</th><th style="width:80px;text-align:center">Score</th></tr></thead>
+        <tbody>
+          <tr><td>Fever</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d7_fever" value="0" onchange="updateScores()"><span>0: Absent</span></label><label class="score-option"><input type="radio" name="d7_fever" value="1" onchange="updateScores()"><span>1: 37.1–38°C</span></label><label class="score-option"><input type="radio" name="d7_fever" value="2" onchange="updateScores()"><span>2: 38.1–39°C</span></label><label class="score-option"><input type="radio" name="d7_fever" value="3" onchange="updateScores()"><span>3: &gt;39°C</span></label></div></td><td><div class="score-total" id="d7_fever_score">—</div></td></tr>
+          <tr><td>Chills</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d7_chills" value="0" onchange="updateScores()"><span>0: Absent</span></label><label class="score-option"><input type="radio" name="d7_chills" value="1" onchange="updateScores()"><span>1: Present</span></label></div></td><td><div class="score-total" id="d7_chills_score">—</div></td></tr>
+          <tr><td>Headache</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d7_headache" value="0" onchange="updateScores()"><span>0: Absent</span></label><label class="score-option"><input type="radio" name="d7_headache" value="1" onchange="updateScores()"><span>1: Present</span></label></div></td><td><div class="score-total" id="d7_headache_score">—</div></td></tr>
+          <tr><td>Cough</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d7_cough" value="0" onchange="updateScores()"><span>0: Absent</span></label><label class="score-option"><input type="radio" name="d7_cough" value="1" onchange="updateScores()"><span>1: Present</span></label></div></td><td><div class="score-total" id="d7_cough_score">—</div></td></tr>
+          <tr><td>Rhinitis</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d7_rhinitis" value="0" onchange="updateScores()"><span>0: Absent</span></label><label class="score-option"><input type="radio" name="d7_rhinitis" value="1" onchange="updateScores()"><span>1: Present</span></label></div></td><td><div class="score-total" id="d7_rhinitis_score">—</div></td></tr>
+          <tr><td>Vomiting</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d7_vomit" value="0" onchange="updateScores()"><span>0: Absent</span></label><label class="score-option"><input type="radio" name="d7_vomit" value="1" onchange="updateScores()"><span>1: Present</span></label></div></td><td><div class="score-total" id="d7_vomit_score">—</div></td></tr>
+          <tr><td>Inappetence</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d7_inapp" value="0" onchange="updateScores()"><span>0: Absent</span></label><label class="score-option"><input type="radio" name="d7_inapp" value="1" onchange="updateScores()"><span>1: Present</span></label></div></td><td><div class="score-total" id="d7_inapp_score">—</div></td></tr>
+          <tr><td colspan="2" style="text-align:right;font-weight:600;font-size:12px;color:var(--accent)">General Subtotal:</td><td><div class="score-total" id="d7_gen_total">0</div></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="section-sub-header">Acute Pharyngitis</div>
+    <div class="section-body">
+      <table class="score-table">
+        <thead><tr><th style="width:38%">Sign / Symptom</th><th>Score Options</th><th style="width:80px;text-align:center">Score</th></tr></thead>
+        <tbody>
+          <tr><td>Sore Throat</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d7_sorethroat" value="0" onchange="updateScores()"><span>0</span></label><label class="score-option"><input type="radio" name="d7_sorethroat" value="2" onchange="updateScores()"><span>2</span></label></div></td><td><div class="score-total" id="d7_sorethroat_score">—</div></td></tr>
+          <tr><td>Pharyngeal Erythema</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d7_phareryt" value="0" onchange="updateScores()"><span>0</span></label><label class="score-option"><input type="radio" name="d7_phareryt" value="2" onchange="updateScores()"><span>2</span></label></div></td><td><div class="score-total" id="d7_phareryt_score">—</div></td></tr>
+          <tr><td>Tonsillar Enlargement</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d7_tonsil" value="0" onchange="updateScores()"><span>0</span></label><label class="score-option"><input type="radio" name="d7_tonsil" value="2" onchange="updateScores()"><span>2</span></label></div></td><td><div class="score-total" id="d7_tonsil_score">—</div></td></tr>
+          <tr><td>Tonsillo-pharyngeal Exudates</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d7_exudate" value="0" onchange="updateScores()"><span>0</span></label><label class="score-option"><input type="radio" name="d7_exudate" value="2" onchange="updateScores()"><span>2</span></label></div></td><td><div class="score-total" id="d7_exudate_score">—</div></td></tr>
+          <tr><td>Painful Cervical Lymphadenopathy</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d7_lymph" value="0" onchange="updateScores()"><span>0</span></label><label class="score-option"><input type="radio" name="d7_lymph" value="2" onchange="updateScores()"><span>2</span></label></div></td><td><div class="score-total" id="d7_lymph_score">—</div></td></tr>
+          <tr><td colspan="2" style="text-align:right;font-weight:600;font-size:12px;color:var(--accent)">Pharyngitis Subtotal:</td><td><div class="score-total" id="d7_pharyn_total">0</div></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="section-sub-header">Acute Otitis Media</div>
+    <div class="section-body">
+      <table class="score-table">
+        <thead><tr><th style="width:38%">Sign / Symptom</th><th>Score Options</th><th style="width:80px;text-align:center">Score</th></tr></thead>
+        <tbody>
+          <tr><td>Bulging of TM</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d7_bulge" value="0" onchange="updateScores()"><span>0</span></label><label class="score-option"><input type="radio" name="d7_bulge" value="1" onchange="updateScores()"><span>1</span></label></div></td><td><div class="score-total" id="d7_bulge_score">—</div></td></tr>
+          <tr><td>Limited/Absent Mobility of TM</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d7_tmmob" value="0" onchange="updateScores()"><span>0</span></label><label class="score-option"><input type="radio" name="d7_tmmob" value="1" onchange="updateScores()"><span>1</span></label></div></td><td><div class="score-total" id="d7_tmmob_score">—</div></td></tr>
+          <tr><td>Otalgia or Irritability</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d7_otalgia" value="0" onchange="updateScores()"><span>0</span></label><label class="score-option"><input type="radio" name="d7_otalgia" value="1" onchange="updateScores()"><span>1</span></label></div></td><td><div class="score-total" id="d7_otalgia_score">—</div></td></tr>
+          <tr><td>Air Fluid Level Behind TM</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d7_airfluid" value="0" onchange="updateScores()"><span>0</span></label><label class="score-option"><input type="radio" name="d7_airfluid" value="1" onchange="updateScores()"><span>1</span></label></div></td><td><div class="score-total" id="d7_airfluid_score">—</div></td></tr>
+          <tr><td>Erythema of TM</td><td><div class="score-options"><label class="score-option"><input type="radio" name="d7_erythtm" value="0" onchange="updateScores()"><span>0</span></label><label class="score-option"><input type="radio" name="d7_erythtm" value="1" onchange="updateScores()"><span>1</span></label></div></td><td><div class="score-total" id="d7_erythtm_score">—</div></td></tr>
+          <tr><td colspan="2" style="text-align:right;font-weight:600;font-size:12px;color:var(--accent)">Otitis Media Subtotal:</td><td><div class="score-total" id="d7_otitis_total">0</div></td></tr>
+          <tr style="background:#e8eef8"><td colspan="2" style="text-align:right;font-weight:700;font-size:13px;color:var(--accent)">🔢 TOTAL EOT SCORE:</td><td><div class="score-total" id="d7_grand_total" style="background:var(--accent);color:#fff;font-size:15px">0</div></td></tr>
+        </tbody>
+      </table>
+      <div class="form-grid cols-3 mt-12">
+        <div class="form-field"><label>Total Baseline Score</label><input type="text" id="sum_baseline" readonly class="auto-filled"></div>
+        <div class="form-field"><label>Total EOT Score</label><input type="text" id="sum_eot" readonly class="auto-filled"></div>
+        <div class="form-field"><label>% Reduction <span class="tag auto">AUTO</span></label><input type="text" id="sum_reduction" readonly class="auto-filled"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- S10: SAFETY -->
+  <div class="section-card">
+    <div class="section-header"><span class="sec-num">10</span> Safety Assessment — Adverse Events</div>
+    <div class="section-body">
+      <div class="form-field" style="margin-bottom:14px">
+        <label style="font-size:13px;font-weight:600;color:var(--text)">*Has any adverse event occurred?</label>
+        <div class="radio-group mt-8">
+          <label><input type="radio" name="ae_occurred" value="yes" onchange="toggleAETable(true)"> Yes</label>
+          <label><input type="radio" name="ae_occurred" value="no" onchange="toggleAETable(false)"> No</label>
+        </div>
+      </div>
+      <div id="aeSection" style="display:none">
+        <table class="ae-table"><thead><tr><th style="width:30px">AE#</th><th>*Event Name</th><th style="width:130px">*Start Date</th><th style="width:130px">*Stop Date</th><th style="width:90px">*Serious?</th><th style="width:110px">Treatment Given</th><th style="width:40px"></th></tr></thead>
+        <tbody id="aeTableBody">
+          <tr><td style="text-align:center;font-weight:600;color:var(--text-muted)">1</td><td><input type="text" placeholder="Diagnosis / event"></td><td><input type="date"></td><td><input type="date"></td><td><select><option value="">—</option><option value="0">No</option><option value="1">Yes</option></select></td><td><select><option value="">—</option><option value="0">No</option><option value="1">Yes</option></select></td><td><button class="btn-del" onclick="delRow(this.closest('tr'))">✕</button></td></tr>
+        </tbody></table>
+        <div class="info-note mt-8">⚠ If serious, please complete a JRO SAE form separately.</div>
+        <div class="rep-actions"><button class="btn-add" onclick="addAERow()">+ Add AE Row</button></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- S11: COMPLIANCE -->
+  <div class="section-card">
+    <div class="section-header"><span class="sec-num">11</span> Medication Compliance (Day 1–5)</div>
+    <div class="section-body">
+      <table class="compliance-table">
+        <thead><tr><th class="row-header">Aspect</th><th>Day 1</th><th>Day 2</th><th>Day 3</th><th>Day 4</th><th>Day 5</th></tr></thead>
+        <tbody>
+          <tr><td class="row-label">Dose [specify]</td>
+            <td><input type="text" id="comp_dose_1" style="width:70px" placeholder="dose"></td>
+            <td><input type="text" id="comp_dose_2" style="width:70px"></td>
+            <td><input type="text" id="comp_dose_3" style="width:70px"></td>
+            <td><input type="text" id="comp_dose_4" style="width:70px"></td>
+            <td><input type="text" id="comp_dose_5" style="width:70px"></td></tr>
+          <tr><td class="row-label">Correct Dose</td>
+            <td><input type="checkbox" id="comp_correct_1"></td><td><input type="checkbox" id="comp_correct_2"></td><td><input type="checkbox" id="comp_correct_3"></td><td><input type="checkbox" id="comp_correct_4"></td><td><input type="checkbox" id="comp_correct_5"></td></tr>
+          <tr><td class="row-label">Incorrect Dose</td>
+            <td><input type="checkbox" id="comp_incorrect_1"></td><td><input type="checkbox" id="comp_incorrect_2"></td><td><input type="checkbox" id="comp_incorrect_3"></td><td><input type="checkbox" id="comp_incorrect_4"></td><td><input type="checkbox" id="comp_incorrect_5"></td></tr>
+          <tr><td class="row-label">Frequency [specify]</td>
+            <td><input type="text" id="comp_freq_1" style="width:70px" placeholder="freq"></td>
+            <td><input type="text" id="comp_freq_2" style="width:70px"></td>
+            <td><input type="text" id="comp_freq_3" style="width:70px"></td>
+            <td><input type="text" id="comp_freq_4" style="width:70px"></td>
+            <td><input type="text" id="comp_freq_5" style="width:70px"></td></tr>
+          <tr><td class="row-label">Adherent</td>
+            <td><input type="checkbox" id="comp_adh_1"></td><td><input type="checkbox" id="comp_adh_2"></td><td><input type="checkbox" id="comp_adh_3"></td><td><input type="checkbox" id="comp_adh_4"></td><td><input type="checkbox" id="comp_adh_5"></td></tr>
+          <tr><td class="row-label">Non-Adherent</td>
+            <td><input type="checkbox" id="comp_nonadh_1"></td><td><input type="checkbox" id="comp_nonadh_2"></td><td><input type="checkbox" id="comp_nonadh_3"></td><td><input type="checkbox" id="comp_nonadh_4"></td><td><input type="checkbox" id="comp_nonadh_5"></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- S12: PALATABILITY -->
+  <div class="section-card">
+    <div class="section-header"><span class="sec-num">12</span> Five-Point Facial Hedonic Scale — Palatability</div>
+    <div class="section-body">
+      <div class="palatability-scale">
+        <label class="pal-option"><input type="radio" name="palatability" value="1"><span class="pal-face">😞</span><span class="pal-label">Dislike<br>Very Much</span></label>
+        <label class="pal-option"><input type="radio" name="palatability" value="2"><span class="pal-face">😕</span><span class="pal-label">Dislike<br>a Little</span></label>
+        <label class="pal-option"><input type="radio" name="palatability" value="3"><span class="pal-face">😐</span><span class="pal-label">Not Sure</span></label>
+        <label class="pal-option"><input type="radio" name="palatability" value="4"><span class="pal-face">🙂</span><span class="pal-label">Like<br>a Little</span></label>
+        <label class="pal-option"><input type="radio" name="palatability" value="5"><span class="pal-face">😄</span><span class="pal-label">Like<br>Very Much</span></label>
+      </div>
+    </div>
+  </div>
+
+  <!-- S13: CONCOMITANT -->
+  <div class="section-card">
+    <div class="section-header"><span class="sec-num">13</span> Concomitant Drugs During Study</div>
+    <div class="section-body">
+      <div style="margin-bottom:12px">
+        <strong style="font-size:12.5px;color:var(--text-muted)">Pre-defined medications:</strong>
+        <div class="form-grid cols-3 mt-8">
+          <label><input type="checkbox" id="concom_paracetamol" style="margin-right:6px"> Paracetamol</label>
+          <label><input type="checkbox" id="concom_cpm" style="margin-right:6px"> CPM</label>
+          <label><input type="checkbox" id="concom_broncho" style="margin-right:6px"> Bronchodilator</label>
+          <label><input type="checkbox" id="concom_nasal" style="margin-right:6px"> Nasal Drops</label>
+          <label><input type="checkbox" id="concom_ear" style="margin-right:6px"> Ear Drops</label>
+        </div>
+      </div>
+      <table class="concom-table"><thead><tr><th>Generic Name</th><th>Dosage</th><th>Route <span class="tag" style="display:inline-block;font-size:9px;padding:1px 4px">#</span></th><th>Date From</th><th>Date To</th><th style="width:40px"></th></tr></thead>
+      <tbody id="concomBody">
+        <tr><td><input type="text" placeholder="Generic name"></td><td><input type="text" placeholder="e.g. 5mg BD"></td><td><select><option value="">—</option><option>Oral</option><option>IV</option><option>IM</option><option>Topical</option><option>Inhaled</option><option>Nasal</option></select></td><td><input type="date"></td><td><input type="date"></td><td><button class="btn-del" onclick="delRow(this.closest('tr'))">✕</button></td></tr>
+      </tbody></table>
+      <div class="rep-actions"><button class="btn-add" onclick="addConcomRow()">+ Add Medication</button></div>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="form-footer">
+    <div class="footer-meta" id="footerMeta">Draft — not yet submitted</div>
+    <div class="footer-actions">
+      <button class="btn-secondary" onclick="clearForm()">↩ Clear</button>
+      <button class="btn-print" onclick="printForm()">🖨 Print PDF</button>
+      <button class="btn-excel" onclick="exportCSV()">📊 Export CSV</button>
+      <button class="btn-primary" onclick="openSubmitModal()">✔ Submit to Database</button>
+    </div>
+  </div>
+</div>
+
+<!-- SUBMIT MODAL -->
+<div class="modal-overlay" id="submitModal">
+  <div class="modal-box" id="modalContent">
+    <h3>Submit CRF to Database</h3>
+    <p>This will send all entered data to the central Supabase database. The admin in Mumbai will see it immediately. Are you sure?</p>
+    <div class="modal-btns">
+      <button class="btn-secondary" onclick="closeModal()" style="padding:8px 20px">Cancel</button>
+      <button class="btn-primary" onclick="submitToSupabase()" style="padding:8px 20px">✔ Confirm Submit</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ── LOOKUP DATA ──
+const studyData={'STD-001':'Amoxicillin-Clavulanate Pediatric Study','STD-002':'Azithromycin Upper RTI Study','STD-003':'Cefixime AOM/Pharyngitis Trial'};
+const centreData={'CTR-01':{inv:'Dr. Kaustubh Sharma',clinic:'XYZ Pediatric Clinic, Andheri West, Mumbai',loc:'Mumbai North'},'CTR-02':{inv:'Dr. Priya Mehta',clinic:'Apollo Clinic, Connaught Place, Delhi',loc:'Delhi Central'},'CTR-03':{inv:'Dr. Ramesh Rao',clinic:'Bangalore Children Centre, Indiranagar',loc:'Bangalore East'}};
+
+function onStudySelect(){const id=document.getElementById('studyId').value;document.getElementById('studyName').value=studyData[id]||'';}
+function onCentreSelect(){const id=document.getElementById('centreId').value;const c=centreData[id];if(c){document.getElementById('invName').value=c.inv;document.getElementById('clinicAddr').value=c.clinic;document.getElementById('location').value=c.loc;}else{document.getElementById('invName').value='';document.getElementById('clinicAddr').value='';document.getElementById('location').value='';}}
+
+function calcAge(){const dob=document.getElementById('dob').value;const enrol=document.getElementById('enrolDate').value;if(!dob)return;const dobDate=new Date(dob);const refDate=enrol?new Date(enrol):new Date();const totalMonths=Math.floor((refDate-dobDate)/(1000*60*60*24*30.44));document.getElementById('ageMonths').value=totalMonths>0?totalMonths:'';document.getElementById('ageYears').value=totalMonths>0?(totalMonths/12).toFixed(1):'';}
+
+function convertHeight(){const cm=parseFloat(document.getElementById('heightCm').value);if(!isNaN(cm)&&cm>0){const totalIn=cm/2.54;const ft=Math.floor(totalIn/12);const inch=(totalIn%12).toFixed(1);document.getElementById('heightFt').value=`${ft}' ${inch}"`;}else{document.getElementById('heightFt').value='';}}
+
+function calcBMI(visit){let weight,height,bmiEl;if(visit==='v1'){weight=parseFloat(document.getElementById('v1_weight').value);height=parseFloat(document.getElementById('heightCm').value);bmiEl=document.getElementById('v1_bmi');}else{weight=parseFloat(document.getElementById('v7_weight').value);height=parseFloat(document.getElementById('heightCm').value);bmiEl=document.getElementById('v7_bmi');}if(weight&&height){bmiEl.value=(weight/((height/100)**2)).toFixed(2);}}
+
+const scoreGroups={d1_gen:['d1_fever','d1_chills','d1_headache','d1_cough','d1_rhinitis','d1_vomit','d1_inapp'],d1_pharyn:['d1_sorethroat','d1_phareryt','d1_tonsil','d1_exudate','d1_lymph'],d1_otitis:['d1_bulge','d1_tmmob','d1_otalgia','d1_airfluid','d1_erythtm'],d7_gen:['d7_fever','d7_chills','d7_headache','d7_cough','d7_rhinitis','d7_vomit','d7_inapp'],d7_pharyn:['d7_sorethroat','d7_phareryt','d7_tonsil','d7_exudate','d7_lymph'],d7_otitis:['d7_bulge','d7_tmmob','d7_otalgia','d7_airfluid','d7_erythtm']};
+
+function getRadioVal(name){const el=document.querySelector(`input[name="${name}"]:checked`);return el?parseInt(el.value):null;}
+function updateScores(){let totals={};for(const[group,fields]of Object.entries(scoreGroups)){let sum=0;fields.forEach(f=>{const v=getRadioVal(f);const el=document.getElementById(f+'_score');if(el)el.textContent=v!==null?v:'—';if(v!==null)sum+=v;});totals[group]=sum;const tot=document.getElementById(group+'_total');if(tot)tot.textContent=sum;}const d1=((totals.d1_gen||0)+(totals.d1_pharyn||0)+(totals.d1_otitis||0));const d7=((totals.d7_gen||0)+(totals.d7_pharyn||0)+(totals.d7_otitis||0));document.getElementById('d1_grand_total').textContent=d1;document.getElementById('d7_grand_total').textContent=d7;document.getElementById('sum_baseline').value=d1;document.getElementById('sum_eot').value=d7;document.getElementById('sum_reduction').value=d1>0?((d1-d7)/d1*100).toFixed(1)+'%':'';}
+
+function toggleAETable(show){document.getElementById('aeSection').style.display=show?'block':'none';}
+let aeCount=1;
+function addAERow(){aeCount++;const tr=document.createElement('tr');tr.innerHTML=`<td style="text-align:center;font-weight:600;color:var(--text-muted)">${aeCount}</td><td><input type="text" placeholder="Diagnosis"></td><td><input type="date"></td><td><input type="date"></td><td><select><option value="">—</option><option value="0">No</option><option value="1">Yes</option></select></td><td><select><option value="">—</option><option value="0">No</option><option value="1">Yes</option></select></td><td><button class="btn-del" onclick="delRow(this.closest('tr'))">✕</button></td>`;document.getElementById('aeTableBody').appendChild(tr);}
+
+function addMedHist(){const c=document.getElementById('medHistRows').querySelectorAll('.rep-row').length+1;const r=document.createElement('div');r.className='rep-row has-num';r.style='grid-template-columns:1fr 3fr 160px 160px auto';r.innerHTML=`<span class="row-num">${c}</span><div class="form-field"><label>Condition</label><input type="text" placeholder="Condition name"></div><div class="form-field"><label>Start Date</label><input type="date"></div><div class="form-field"><label>Stop Date</label><input type="date"></div><div style="display:flex;align-items:flex-end;padding-bottom:1px"><button class="btn-del" onclick="delRow(this)">✕</button></div>`;document.getElementById('medHistRows').appendChild(r);}
+function addConcRow(){const c=document.getElementById('concRows').querySelectorAll('.rep-row').length+1;const r=document.createElement('div');r.className='rep-row has-num';r.style='grid-template-columns:1fr 3fr 160px 160px 110px auto';r.innerHTML=`<span class="row-num">${c}</span><div class="form-field"><label>Condition</label><input type="text" placeholder="Condition"></div><div class="form-field"><label>Start Date</label><input type="date"></div><div class="form-field"><label>Stop Date</label><input type="date"></div><div class="form-field"><label>Status</label><select><option value="">Select</option><option>Ongoing</option><option>Resolved</option></select></div><div style="display:flex;align-items:flex-end;padding-bottom:1px"><button class="btn-del" onclick="delRow(this)">✕</button></div>`;document.getElementById('concRows').appendChild(r);}
+function addConcomRow(){const tr=document.createElement('tr');tr.innerHTML=`<td><input type="text" placeholder="Generic name"></td><td><input type="text" placeholder="Dosage"></td><td><select><option value="">—</option><option>Oral</option><option>IV</option><option>IM</option><option>Topical</option><option>Inhaled</option><option>Nasal</option></select></td><td><input type="date"></td><td><input type="date"></td><td><button class="btn-del" onclick="delRow(this.closest('tr'))">✕</button></td>`;document.getElementById('concomBody').appendChild(tr);}
+function delRow(el){el.closest('.rep-row,tr')?.remove();}
+
+// ── COLLECT FORM DATA ──
+function collectFormData(){
+  const g=id=>(document.getElementById(id)||{}).value||'';
+  const r=name=>{const el=document.querySelector(`input[name="${name}"]:checked`);return el?el.value:'';};
+  const cb=id=>(document.getElementById(id)||{}).checked?1:0;
+
+  // Collect AE rows
+  const aeRows=[];
+  document.querySelectorAll('#aeTableBody tr').forEach((tr,i)=>{
+    const cells=tr.querySelectorAll('td');
+    if(cells.length>=6)aeRows.push({ae_no:i+1,event_name:cells[1].querySelector('input')?.value||'',start_date:cells[2].querySelector('input')?.value||'',stop_date:cells[3].querySelector('input')?.value||'',serious:cells[4].querySelector('select')?.value||'',treatment_given:cells[5].querySelector('select')?.value||''});
+  });
+
+  // Collect concomitant
+  const concomRows=[];
+  document.querySelectorAll('#concomBody tr').forEach(tr=>{
+    const inputs=tr.querySelectorAll('input,select');
+    if(inputs[0]?.value)concomRows.push({name:inputs[0].value,dosage:inputs[1]?.value||'',route:inputs[2]?.value||'',date_from:inputs[3]?.value||'',date_to:inputs[4]?.value||''});
+  });
+
+  return {
+    submitted_at:new Date().toISOString(),
+    study_name:g('studyName'),study_id:g('studyId'),centre_id:g('centreId'),location:g('location'),
+    investigator_name:g('invName'),clinic_name:g('clinicAddr'),
+    mobile:g('mobNo'),email:g('emailInv'),crc_name:g('crcName'),
+    subject_id:g('subjectId'),subject_initials:g('subjectInitials'),sex:r('sex'),
+    dob:g('dob'),enrol_date:g('enrolDate'),age_months:g('ageMonths'),age_years:g('ageYears'),
+    weight_kg:g('weightPt'),height_cm:g('heightCm'),
+    pe_general:g('pe_ga'),pe_cvs:g('pe_cvs'),pe_rs:g('pe_rs'),pe_git:g('pe_git'),pe_cns:g('pe_cns'),
+    v1_weight:g('v1_weight'),v1_bmi:g('v1_bmi'),v1_pulse:g('v1_pulse'),v1_temp:g('v1_temp'),v1_rr:g('v1_rr'),
+    d1_fever:r('d1_fever'),d1_chills:r('d1_chills'),d1_headache:r('d1_headache'),d1_cough:r('d1_cough'),d1_rhinitis:r('d1_rhinitis'),d1_vomit:r('d1_vomit'),d1_inapp:r('d1_inapp'),
+    d1_sorethroat:r('d1_sorethroat'),d1_phareryt:r('d1_phareryt'),d1_tonsil:r('d1_tonsil'),d1_exudate:r('d1_exudate'),d1_lymph:r('d1_lymph'),
+    d1_bulge:r('d1_bulge'),d1_tmmob:r('d1_tmmob'),d1_otalgia:r('d1_otalgia'),d1_airfluid:r('d1_airfluid'),d1_erythtm:r('d1_erythtm'),
+    total_baseline:g('sum_baseline'),
+    v7_weight:g('v7_weight'),v7_bmi:g('v7_bmi'),v7_pulse:g('v7_pulse'),v7_temp:g('v7_temp'),v7_rr:g('v7_rr'),
+    d7_fever:r('d7_fever'),d7_chills:r('d7_chills'),d7_headache:r('d7_headache'),d7_cough:r('d7_cough'),d7_rhinitis:r('d7_rhinitis'),d7_vomit:r('d7_vomit'),d7_inapp:r('d7_inapp'),
+    d7_sorethroat:r('d7_sorethroat'),d7_phareryt:r('d7_phareryt'),d7_tonsil:r('d7_tonsil'),d7_exudate:r('d7_exudate'),d7_lymph:r('d7_lymph'),
+    d7_bulge:r('d7_bulge'),d7_tmmob:r('d7_tmmob'),d7_otalgia:r('d7_otalgia'),d7_airfluid:r('d7_airfluid'),d7_erythtm:r('d7_erythtm'),
+    total_eot:g('sum_eot'),pct_reduction:g('sum_reduction'),
+    ae_occurred:r('ae_occurred'),adverse_events:JSON.stringify(aeRows),
+    comp_dose_1:g('comp_dose_1'),comp_dose_2:g('comp_dose_2'),comp_dose_3:g('comp_dose_3'),comp_dose_4:g('comp_dose_4'),comp_dose_5:g('comp_dose_5'),
+    comp_correct:JSON.stringify([cb('comp_correct_1'),cb('comp_correct_2'),cb('comp_correct_3'),cb('comp_correct_4'),cb('comp_correct_5')]),
+    comp_adherent:JSON.stringify([cb('comp_adh_1'),cb('comp_adh_2'),cb('comp_adh_3'),cb('comp_adh_4'),cb('comp_adh_5')]),
+    palatability:r('palatability'),
+    concom_paracetamol:cb('concom_paracetamol'),concom_cpm:cb('concom_cpm'),concom_broncho:cb('concom_broncho'),concom_nasal:cb('concom_nasal'),concom_ear:cb('concom_ear'),
+    concomitant_other:JSON.stringify(concomRows),
+    status:'submitted'
+  };
+}
+
+// ── SUPABASE SUBMIT ──
+async function submitToSupabase(){
+  const mc=document.getElementById('modalContent');
+  mc.innerHTML=`<div class="spinner"></div><h3>Submitting...</h3><p>Sending data to central database.</p>`;
+
+  const data=collectFormData();
+  if(!data.centre_id||!data.subject_id){
+    mc.innerHTML=`<h3 style="color:var(--mandatory)">Missing Required Fields</h3><p>Please fill in at least Centre ID and Subject ID before submitting.</p><div class="modal-btns"><button class="btn-primary" onclick="closeModal()" style="padding:8px 20px">OK</button></div>`;
+    return;
+  }
+
+  try{
+    const res=await fetch(`${SUPABASE_URL}/rest/v1/crf_submissions`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','apikey':SUPABASE_ANON,'Authorization':`Bearer ${SUPABASE_ANON}`,'Prefer':'return=representation'},
+      body:JSON.stringify(data)
+    });
+    if(res.ok){
+      const now=new Date();
+      document.getElementById('footerMeta').textContent=`Submitted: ${now.toLocaleString('en-IN')} | Subject: ${data.subject_id}`;
+      mc.innerHTML=`<div style="font-size:40px;margin-bottom:12px">✅</div><h3 style="color:var(--success)">Submitted Successfully</h3><p>Data for <strong>${data.subject_id}</strong> has been sent to the central database.<br>The admin dashboard will reflect this immediately.</p><div class="modal-btns"><button class="btn-primary" onclick="closeModal();clearForm()" style="padding:8px 20px">New Entry</button><button class="btn-secondary" onclick="closeModal()" style="padding:8px 20px">Stay on Form</button></div>`;
+    }else{
+      const err=await res.json();
+      throw new Error(err.message||'API error');
+    }
+  }catch(e){
+    mc.innerHTML=`<h3 style="color:var(--mandatory)">Submission Failed</h3><p style="font-size:12px;color:#888">${e.message}<br><br>Check that SUPABASE_URL and SUPABASE_ANON are set correctly in config.js</p><div class="modal-btns"><button class="btn-secondary" onclick="closeModal()" style="padding:8px 20px">Close</button><button class="btn-primary" onclick="exportCSV()" style="padding:8px 20px">Save as CSV instead</button></div>`;
+  }
+}
+
+function openSubmitModal(){document.getElementById('submitModal').classList.add('active');document.getElementById('modalContent').innerHTML=`<h3>Submit CRF to Database</h3><p>This will send all entered data to the central Supabase database. The admin in Mumbai will see it immediately.</p><div class="modal-btns"><button class="btn-secondary" onclick="closeModal()" style="padding:8px 20px">Cancel</button><button class="btn-primary" onclick="submitToSupabase()" style="padding:8px 20px">✔ Confirm Submit</button></div>`;}
+function closeModal(){document.getElementById('submitModal').classList.remove('active');}
+
+// ── SAVE DRAFT (localStorage) ──
+function saveDraft(){
+  const data=collectFormData();
+  localStorage.setItem('crf_draft',JSON.stringify(data));
+  showToast('💾 Draft saved locally');
+  document.getElementById('footerMeta').textContent=`Draft saved: ${new Date().toLocaleString('en-IN')}`;
+}
+
+// ── EXPORT CSV ──
+function exportCSV(){
+  const data=collectFormData();
+  const rows=[Object.keys(data),Object.values(data).map(v=>typeof v==='string'?v:JSON.stringify(v))];
+  const csv=rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download=`CRF_${data.subject_id||'draft'}_${new Date().toISOString().slice(0,10)}.csv`;a.click();
+  showToast('📊 CSV downloaded');
+}
+
+function printForm(){window.print();}
+
+function clearForm(){
+  if(confirm('Clear all entered data?')){
+    document.querySelectorAll('input:not(.auto-filled),select,textarea').forEach(el=>{if(el.type==='checkbox'||el.type==='radio')el.checked=false;else el.value='';});
+    document.querySelectorAll('.auto-filled').forEach(el=>el.value='');
+    document.querySelectorAll('.score-total').forEach(el=>el.textContent='—');
+    ['d1_grand_total','d7_grand_total'].forEach(id=>document.getElementById(id).textContent='0');
+    showToast('Form cleared');
+  }
+}
+
+function showToast(msg,type='',dur=3000){const t=document.getElementById('toast');t.textContent=msg;t.className='show '+(type||'');setTimeout(()=>t.className='',dur);}
+</script>
+</body>
+</html>

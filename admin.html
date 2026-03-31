@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CRF Admin Dashboard</title>
+<script>
+// ── EMBEDDED CONFIG — edit these 3 values, no need for config.js ──
+// Copy these from your config.js or Supabase project settings
+var SUPABASE_URL  = "https://YOUR_PROJECT_ID.supabase.co";
+var SUPABASE_ANON = "YOUR_ANON_PUBLIC_KEY";
+var ADMIN_PASSWORD = "CRFAdmin@2024";
+</script>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0f1117;--surface:#1a1d27;--surface2:#22263a;--border:#2e3248;
+    --accent:#4f7ef7;--accent2:#34d399;--accent3:#f59e0b;--accent4:#f87171;
+    --text:#e8eaf0;--text-muted:#7880a0;--radius:6px;
+    --shadow:0 4px 20px rgba(0,0,0,.4);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);font-size:13.5px;min-height:100vh}
+
+  /* LOGIN SCREEN */
+  .login-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;background:var(--bg)}
+  .login-box{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:40px;width:360px;box-shadow:var(--shadow)}
+  .login-box .logo{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.1em;color:var(--text-muted);margin-bottom:24px;text-align:center}
+  .login-box h2{font-size:22px;font-weight:700;color:var(--text);margin-bottom:6px;text-align:center}
+  .login-box p{font-size:12.5px;color:var(--text-muted);text-align:center;margin-bottom:24px}
+  .login-box input{width:100%;padding:10px 14px;background:#2a2d3e;border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;margin-bottom:12px}
+  .login-box input:focus{outline:none;border-color:var(--accent)}
+  .login-box button{width:100%;padding:11px;background:var(--accent);color:#fff;border:none;border-radius:var(--radius);font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;transition:background .15s}
+  .login-box button:hover{background:#3a6be0}
+  .login-error{color:var(--accent4);font-size:12px;margin-top:8px;text-align:center}
+
+  /* TOP BAR */
+  .top-bar{background:var(--surface);border-bottom:1px solid var(--border);padding:12px 28px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+  .top-bar .logo{font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;letter-spacing:.06em;color:var(--accent)}
+  .top-bar .bar-right{display:flex;gap:10px;align-items:center}
+  .top-bar .last-updated{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text-muted)}
+  .btn{font-family:'DM Sans',sans-serif;font-size:12.5px;font-weight:600;padding:6px 16px;border-radius:var(--radius);cursor:pointer;border:none;transition:all .15s}
+  .btn-primary{background:var(--accent);color:#fff}
+  .btn-primary:hover{background:#3a6be0}
+  .btn-green{background:#1a5c3a;color:var(--accent2);border:1px solid #2a7a50}
+  .btn-green:hover{background:#225048}
+  .btn-outline{background:transparent;color:var(--text-muted);border:1px solid var(--border)}
+  .btn-outline:hover{border-color:var(--accent);color:var(--accent)}
+  .btn-danger{background:#3a1a1a;color:var(--accent4);border:1px solid #5a2a2a;font-size:11px;padding:4px 10px}
+
+  /* MAIN LAYOUT */
+  .main{max-width:1400px;margin:0 auto;padding:24px 28px}
+
+  /* STATS CARDS */
+  .stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:28px}
+  .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;position:relative;overflow:hidden}
+  .stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+  .stat-card.blue::before{background:var(--accent)}
+  .stat-card.green::before{background:var(--accent2)}
+  .stat-card.yellow::before{background:var(--accent3)}
+  .stat-card.red::before{background:var(--accent4)}
+  .stat-label{font-size:11.5px;color:var(--text-muted);font-weight:500;letter-spacing:.03em;margin-bottom:8px}
+  .stat-value{font-size:32px;font-weight:700;font-family:'IBM Plex Mono',monospace;line-height:1}
+  .stat-value.blue{color:var(--accent)}
+  .stat-value.green{color:var(--accent2)}
+  .stat-value.yellow{color:var(--accent3)}
+  .stat-value.red{color:var(--accent4)}
+  .stat-sub{font-size:11px;color:var(--text-muted);margin-top:6px}
+
+  /* CENTRE BREAKDOWN */
+  .centre-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:28px}
+  .centre-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px}
+  .centre-card .c-name{font-weight:700;font-size:14px;color:var(--text);margin-bottom:2px}
+  .centre-card .c-id{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text-muted);margin-bottom:12px}
+  .centre-card .c-stat{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border)}
+  .centre-card .c-stat:last-child{border-bottom:none}
+  .centre-card .c-stat-label{font-size:12px;color:var(--text-muted)}
+  .centre-card .c-stat-val{font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;color:var(--accent)}
+  .progress-bar{height:4px;background:var(--border);border-radius:2px;margin-top:10px;overflow:hidden}
+  .progress-fill{height:100%;background:var(--accent);border-radius:2px;transition:width .5s}
+
+  /* DATA TABLE */
+  .table-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+  .table-toolbar{padding:14px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+  .table-toolbar h3{font-size:14px;font-weight:700;color:var(--text)}
+  .toolbar-right{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .search-input{padding:7px 12px;background:#2a2d3e;border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:'DM Sans',sans-serif;font-size:12.5px;width:200px}
+  .search-input:focus{outline:none;border-color:var(--accent)}
+  .filter-select{padding:7px 10px;background:#2a2d3e;border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:'DM Sans',sans-serif;font-size:12.5px;cursor:pointer}
+  .filter-select:focus{outline:none;border-color:var(--accent)}
+
+  .data-table{width:100%;border-collapse:collapse;font-size:12.5px}
+  .data-table th{background:#1e2135;color:var(--text-muted);padding:10px 14px;text-align:left;font-weight:600;font-size:11.5px;letter-spacing:.04em;border-bottom:1px solid var(--border);white-space:nowrap;cursor:pointer;user-select:none}
+  .data-table th:hover{color:var(--accent)}
+  .data-table th.sorted{color:var(--accent)}
+  .data-table td{padding:10px 14px;border-bottom:1px solid var(--border);vertical-align:middle;color:var(--text)}
+  .data-table tr:hover td{background:var(--surface2)}
+  .data-table tr:last-child td{border-bottom:none}
+  .data-table .mono{font-family:'IBM Plex Mono',monospace;font-size:11.5px}
+  .badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600}
+  .badge.submitted{background:#1a3a5c;color:var(--accent)}
+  .badge.ae-yes{background:#3a1a1a;color:var(--accent4)}
+  .badge.ae-no{background:#1a3a2a;color:var(--accent2)}
+  .score-chip{font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:700;padding:2px 8px;border-radius:3px;background:#1e2135;color:var(--accent3)}
+  .reduce-chip{font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:700;padding:2px 7px;border-radius:3px}
+  .reduce-chip.good{background:#1a3a2a;color:var(--accent2)}
+  .reduce-chip.bad{background:#3a1a1a;color:var(--accent4)}
+
+  /* DETAIL PANEL */
+  .detail-panel{position:fixed;top:0;right:-520px;width:520px;height:100vh;background:var(--surface);border-left:1px solid var(--border);z-index:200;transition:right .3s ease;overflow-y:auto;box-shadow:-8px 0 32px rgba(0,0,0,.5)}
+  .detail-panel.open{right:0}
+  .detail-header{padding:18px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:var(--surface);z-index:1}
+  .detail-header h3{font-size:15px;font-weight:700;color:var(--text)}
+  .detail-close{background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:20px;line-height:1;padding:4px 8px}
+  .detail-close:hover{color:var(--text)}
+  .detail-body{padding:20px}
+  .detail-section{margin-bottom:20px}
+  .detail-section h4{font-size:11.5px;font-weight:700;color:var(--text-muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+  .detail-row{display:flex;justify-content:space-between;padding:5px 0;font-size:12.5px}
+  .detail-row .dl{color:var(--text-muted)}
+  .detail-row .dv{color:var(--text);font-weight:500;text-align:right;max-width:60%}
+  .detail-row .dv.mono{font-family:'IBM Plex Mono',monospace;font-size:12px}
+
+  /* EMPTY / LOADING */
+  .loading-row td,.empty-row td{text-align:center;padding:40px;color:var(--text-muted);font-style:italic}
+  .spinner-sm{display:inline-block;width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:6px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* PAGINATION */
+  .pagination{display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-top:1px solid var(--border);font-size:12px;color:var(--text-muted)}
+  .page-btns{display:flex;gap:4px}
+  .page-btn{padding:4px 10px;background:#2a2d3e;border:1px solid var(--border);border-radius:3px;color:var(--text-muted);cursor:pointer;font-size:12px}
+  .page-btn:hover,.page-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+
+  #toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(10px);background:#1e2135;color:var(--text);padding:10px 20px;border-radius:var(--radius);font-size:13px;font-weight:500;opacity:0;transition:all .25s;z-index:999;pointer-events:none;border:1px solid var(--border)}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  #toast.success{border-color:var(--accent2);background:#1a2e20}
+</style>
+</head>
+<body>
+
+<!-- LOGIN SCREEN -->
+<div class="login-screen" id="loginScreen">
+  <div class="login-box">
+    <div class="logo">◼ CRF SYSTEM · ADMIN ACCESS</div>
+    <h2>Admin Dashboard</h2>
+    <p>Secure access for study coordinators</p>
+    <input type="text" id="loginUser" placeholder="Username" value="admin">
+    <input type="password" id="loginPass" placeholder="Password" onkeydown="if(event.key==='Enter')doLogin()">
+    <button onclick="doLogin()">Login →</button>
+    <div class="login-error" id="loginError"></div>
+    <div id="configStatus" style="margin-top:14px;font-size:11px;color:#555;text-align:center;line-height:1.6"></div>
+  </div>
+</div>
+
+<script>
+// Show config status on load for debugging
+window.addEventListener('DOMContentLoaded', function(){
+  const s = document.getElementById('configStatus');
+  const urlOk = SUPABASE_URL && !SUPABASE_URL.includes('YOUR_PROJECT_ID');
+  const keyOk = SUPABASE_ANON && !SUPABASE_ANON.includes('YOUR_ANON');
+  const pwOk  = !!ADMIN_PASSWORD;
+  s.innerHTML =
+    `<span style="color:${urlOk?'#34d399':'#f87171'}">● Supabase URL: ${urlOk?'OK':'NOT SET'}</span><br>` +
+    `<span style="color:${keyOk?'#34d399':'#f87171'}">● Anon Key: ${keyOk?'OK':'NOT SET'}</span><br>` +
+    `<span style="color:${pwOk?'#34d399':'#f87171'}">● Password: ${pwOk?'Set ('+ADMIN_PASSWORD.length+' chars)':'NOT SET'}</span>`;
+});
+</script>
+
+<!-- DASHBOARD -->
+<div id="dashboard" style="display:none">
+  <div class="top-bar">
+    <div style="display:flex;align-items:center;gap:20px">
+      <span class="logo">◼ CRF ADMIN DASHBOARD</span>
+      <span class="last-updated" id="lastUpdated">Loading...</span>
+    </div>
+    <div class="bar-right">
+      <button class="btn btn-outline" onclick="loadData()">↻ Refresh</button>
+      <button class="btn btn-green" onclick="exportAllCSV()">📊 Export All</button>
+      <a href="index.html" style="text-decoration:none"><button class="btn btn-outline">← CRF Form</button></a>
+      <button class="btn btn-outline" onclick="logout()" style="font-size:11px">Logout</button>
+    </div>
+  </div>
+
+  <div class="main">
+
+    <!-- STAT CARDS -->
+    <div class="stats-grid">
+      <div class="stat-card blue">
+        <div class="stat-label">TOTAL SUBMISSIONS</div>
+        <div class="stat-value blue" id="statTotal">—</div>
+        <div class="stat-sub">All centres combined</div>
+      </div>
+      <div class="stat-card green">
+        <div class="stat-label">ACTIVE CENTRES</div>
+        <div class="stat-value green" id="statCentres">—</div>
+        <div class="stat-sub">Centres with data</div>
+      </div>
+      <div class="stat-card yellow">
+        <div class="stat-label">AVG BASELINE SCORE</div>
+        <div class="stat-value yellow" id="statAvgBaseline">—</div>
+        <div class="stat-sub">Across all subjects</div>
+      </div>
+      <div class="stat-card red">
+        <div class="stat-label">ADVERSE EVENTS</div>
+        <div class="stat-value red" id="statAE">—</div>
+        <div class="stat-sub">Subjects with AE</div>
+      </div>
+    </div>
+
+    <!-- CENTRE BREAKDOWN -->
+    <div class="centre-grid" id="centreGrid">
+      <!-- populated by JS -->
+    </div>
+
+    <!-- DATA TABLE -->
+    <div class="table-card">
+      <div class="table-toolbar">
+        <h3>All Subject Submissions</h3>
+        <div class="toolbar-right">
+          <input class="search-input" id="searchInput" placeholder="Search subject, centre…" oninput="renderTable()">
+          <select class="filter-select" id="filterCentre" onchange="renderTable()">
+            <option value="">All Centres</option>
+            <option value="CTR-01">CTR-01 Mumbai</option>
+            <option value="CTR-02">CTR-02 Delhi</option>
+            <option value="CTR-03">CTR-03 Bangalore</option>
+          </select>
+          <select class="filter-select" id="filterAE" onchange="renderTable()">
+            <option value="">All AE Status</option>
+            <option value="yes">AE: Yes</option>
+            <option value="no">AE: No</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="overflow-x:auto">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th onclick="sortBy('submitted_at')">#</th>
+              <th onclick="sortBy('centre_id')">Centre ↕</th>
+              <th onclick="sortBy('subject_id')">Subject ID ↕</th>
+              <th>Initials</th>
+              <th onclick="sortBy('sex')">Sex</th>
+              <th>Age (y)</th>
+              <th onclick="sortBy('submitted_at')">Submitted ↕</th>
+              <th>Baseline Score</th>
+              <th>EOT Score</th>
+              <th>% Reduction</th>
+              <th>AE</th>
+              <th>Palatability</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="tableBody">
+            <tr class="loading-row"><td colspan="13"><span class="spinner-sm"></span>Loading data…</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="pagination" id="pagination"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- DETAIL PANEL -->
+<div class="detail-panel" id="detailPanel">
+  <div class="detail-header">
+    <h3 id="detailTitle">Subject Details</h3>
+    <button class="detail-close" onclick="closeDetail()">✕</button>
+  </div>
+  <div class="detail-body" id="detailBody"></div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+let allData=[];
+let sortField='submitted_at';
+let sortDir=-1;
+let currentPage=1;
+const PAGE_SIZE=15;
+
+// ── LOGIN ──
+function doLogin(){
+  const pass = document.getElementById('loginPass').value.trim();
+  const errEl = document.getElementById('loginError');
+
+  // Check config is set
+  if(!SUPABASE_URL || SUPABASE_URL.includes('YOUR_PROJECT_ID')){
+    errEl.textContent = '⚠ SUPABASE_URL not configured — edit the config at the top of admin.html';
+    return;
+  }
+  if(!ADMIN_PASSWORD){
+    errEl.textContent = '⚠ ADMIN_PASSWORD not set in admin.html config block';
+    return;
+  }
+  if(pass === ADMIN_PASSWORD){
+    errEl.textContent = '';
+    document.getElementById('loginScreen').style.display='none';
+    document.getElementById('dashboard').style.display='block';
+    loadData();
+    setInterval(loadData, 30000);
+  } else {
+    errEl.textContent = `Incorrect password. (Expected length: ${ADMIN_PASSWORD.length} chars)`;
+  }
+}
+function logout(){
+  document.getElementById('loginScreen').style.display='flex';
+  document.getElementById('dashboard').style.display='none';
+}
+
+// ── LOAD DATA FROM SUPABASE ──
+async function loadData(){
+  document.getElementById('lastUpdated').textContent='Refreshing…';
+  try{
+    const res=await fetch(`${SUPABASE_URL}/rest/v1/crf_submissions?select=*&order=submitted_at.desc`,{
+      headers:{'apikey':SUPABASE_ANON,'Authorization':`Bearer ${SUPABASE_ANON}`}
+    });
+    if(!res.ok)throw new Error(`HTTP ${res.status}`);
+    allData=await res.json();
+    document.getElementById('lastUpdated').textContent=`Last updated: ${new Date().toLocaleTimeString('en-IN')}`;
+    updateStats();
+    updateCentreCards();
+    renderTable();
+  }catch(e){
+    document.getElementById('lastUpdated').textContent='Connection error — check config.js';
+    document.getElementById('tableBody').innerHTML=`<tr class="empty-row"><td colspan="13">⚠ Could not load data: ${e.message}<br><small>Make sure SUPABASE_URL and SUPABASE_ANON are set in config.js</small></td></tr>`;
+    showToast('Connection failed — see setup instructions');
+  }
+}
+
+// ── STATS ──
+function updateStats(){
+  document.getElementById('statTotal').textContent=allData.length;
+  const centres=new Set(allData.map(r=>r.centre_id).filter(Boolean));
+  document.getElementById('statCentres').textContent=centres.size;
+  const baselines=allData.map(r=>parseInt(r.total_baseline)).filter(n=>!isNaN(n));
+  document.getElementById('statAvgBaseline').textContent=baselines.length?( baselines.reduce((a,b)=>a+b,0)/baselines.length).toFixed(1):'—';
+  document.getElementById('statAE').textContent=allData.filter(r=>r.ae_occurred==='yes').length;
+}
+
+// ── CENTRE CARDS ──
+function updateCentreCards(){
+  const centreInfo={'CTR-01':{name:'Mumbai North',inv:'Dr. Kaustubh Sharma'},'CTR-02':{name:'Delhi Central',inv:'Dr. Priya Mehta'},'CTR-03':{name:'Bangalore East',inv:'Dr. Ramesh Rao'}};
+  const centreGroups={};
+  allData.forEach(r=>{if(r.centre_id){if(!centreGroups[r.centre_id])centreGroups[r.centre_id]=[];centreGroups[r.centre_id].push(r);}});
+  const grid=document.getElementById('centreGrid');
+  const maxCount=Math.max(1,...Object.values(centreGroups).map(g=>g.length));
+  grid.innerHTML=Object.entries(centreGroups).map(([id,rows])=>{
+    const info=centreInfo[id]||{name:id,inv:'—'};
+    const lastSub=rows[0]?.submitted_at?new Date(rows[0].submitted_at).toLocaleString('en-IN'):'—';
+    const withAE=rows.filter(r=>r.ae_occurred==='yes').length;
+    const pct=Math.round(rows.length/maxCount*100);
+    return `<div class="centre-card">
+      <div class="c-name">${info.name}</div>
+      <div class="c-id">${id} · ${info.inv}</div>
+      <div class="c-stat"><span class="c-stat-label">Subjects enrolled</span><span class="c-stat-val">${rows.length}</span></div>
+      <div class="c-stat"><span class="c-stat-label">With AE</span><span class="c-stat-val" style="color:#f87171">${withAE}</span></div>
+      <div class="c-stat"><span class="c-stat-label">Last submission</span><span class="c-stat-val" style="font-size:11px">${lastSub}</span></div>
+      <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+    </div>`;
+  }).join('')||'<p style="color:var(--text-muted);font-size:13px">No centre data yet.</p>';
+}
+
+// ── TABLE ──
+function sortBy(field){if(sortField===field)sortDir*=-1;else{sortField=field;sortDir=-1;}renderTable();}
+function renderTable(){
+  const q=(document.getElementById('searchInput').value||'').toLowerCase();
+  const fc=document.getElementById('filterCentre').value;
+  const fae=document.getElementById('filterAE').value;
+  let data=[...allData];
+  if(q)data=data.filter(r=>JSON.stringify(r).toLowerCase().includes(q));
+  if(fc)data=data.filter(r=>r.centre_id===fc);
+  if(fae)data=data.filter(r=>r.ae_occurred===fae);
+  data.sort((a,b)=>{const av=a[sortField]||'';const bv=b[sortField]||'';return av<bv?-sortDir:av>bv?sortDir:0;});
+
+  const total=data.length;
+  const totalPages=Math.max(1,Math.ceil(total/PAGE_SIZE));
+  if(currentPage>totalPages)currentPage=1;
+  const page=data.slice((currentPage-1)*PAGE_SIZE,currentPage*PAGE_SIZE);
+
+  const body=document.getElementById('tableBody');
+  if(!page.length){body.innerHTML=`<tr class="empty-row"><td colspan="13">No records found.</td></tr>`;renderPagination(0,0,0);return;}
+
+  body.innerHTML=page.map((r,i)=>{
+    const idx=(currentPage-1)*PAGE_SIZE+i+1;
+    const baseline=r.total_baseline||'—';
+    const eot=r.total_eot||'—';
+    const red=parseFloat(r.pct_reduction);
+    const redChip=!isNaN(red)?`<span class="reduce-chip ${red>=50?'good':'bad'}">${red.toFixed(1)}%</span>`:'—';
+    const aeChip=`<span class="badge ${r.ae_occurred==='yes'?'ae-yes':'ae-no'}">${r.ae_occurred==='yes'?'⚠ Yes':'✓ No'}</span>`;
+    const pal=r.palatability?['😞','😕','😐','🙂','😄'][parseInt(r.palatability)-1]:'—';
+    const date=r.submitted_at?new Date(r.submitted_at).toLocaleDateString('en-IN'):'—';
+    return `<tr>
+      <td class="mono" style="color:var(--text-muted)">${idx}</td>
+      <td><span class="badge submitted">${r.centre_id||'—'}</span></td>
+      <td class="mono" style="font-weight:700;color:var(--accent)">${r.subject_id||'—'}</td>
+      <td>${r.subject_initials||'—'}</td>
+      <td>${r.sex||'—'}</td>
+      <td class="mono">${r.age_years||'—'}</td>
+      <td style="color:var(--text-muted);font-size:12px">${date}</td>
+      <td><span class="score-chip">${baseline}</span></td>
+      <td><span class="score-chip" style="background:#1a2a1a;color:var(--accent2)">${eot}</span></td>
+      <td>${redChip}</td>
+      <td>${aeChip}</td>
+      <td style="font-size:18px">${pal}</td>
+      <td><button class="btn btn-outline" style="font-size:11px;padding:4px 10px" onclick="openDetail(${allData.indexOf(r)})">View</button></td>
+    </tr>`;
+  }).join('');
+  renderPagination(total,currentPage,totalPages);
+}
+
+function renderPagination(total,page,totalPages){
+  document.getElementById('pagination').innerHTML=`
+    <span>Showing ${Math.min((page-1)*PAGE_SIZE+1,total)}–${Math.min(page*PAGE_SIZE,total)} of ${total}</span>
+    <div class="page-btns">
+      <button class="page-btn" onclick="goPage(${page-1})" ${page<=1?'disabled':''}>‹</button>
+      ${Array.from({length:totalPages},(_, i)=>`<button class="page-btn ${i+1===page?'active':''}" onclick="goPage(${i+1})">${i+1}</button>`).join('')}
+      <button class="page-btn" onclick="goPage(${page+1})" ${page>=totalPages?'disabled':''}>›</button>
+    </div>`;
+}
+function goPage(p){currentPage=p;renderTable();}
+
+// ── DETAIL PANEL ──
+function openDetail(idx){
+  const r=allData[idx];
+  if(!r)return;
+  document.getElementById('detailTitle').textContent=`Subject: ${r.subject_id||'—'}`;
+  document.getElementById('detailBody').innerHTML=`
+    <div class="detail-section">
+      <h4>Study & Site</h4>
+      ${dr('Study',r.study_name)} ${dr('Study ID',r.study_id)} ${dr('Centre',r.centre_id)} ${dr('Location',r.location)} ${dr('Investigator',r.investigator_name)} ${dr('Submitted',r.submitted_at?new Date(r.submitted_at).toLocaleString('en-IN'):'—')}
+    </div>
+    <div class="detail-section">
+      <h4>Patient</h4>
+      ${dr('Subject ID',r.subject_id,'mono')} ${dr('Initials',r.subject_initials)} ${dr('Sex',r.sex)} ${dr('Age (months)',r.age_months,'mono')} ${dr('Age (years)',r.age_years,'mono')} ${dr('Weight (kg)',r.weight_kg,'mono')} ${dr('Height (cm)',r.height_cm,'mono')}
+    </div>
+    <div class="detail-section">
+      <h4>Vitals — Day 1</h4>
+      ${dr('Weight',r.v1_weight,'mono')} ${dr('BMI',r.v1_bmi,'mono')} ${dr('Pulse',r.v1_pulse,'mono')} ${dr('Temp (°C)',r.v1_temp,'mono')} ${dr('RR',r.v1_rr,'mono')}
+    </div>
+    <div class="detail-section">
+      <h4>Vitals — Day 7</h4>
+      ${dr('Weight',r.v7_weight,'mono')} ${dr('BMI',r.v7_bmi,'mono')} ${dr('Pulse',r.v7_pulse,'mono')} ${dr('Temp (°C)',r.v7_temp,'mono')} ${dr('RR',r.v7_rr,'mono')}
+    </div>
+    <div class="detail-section">
+      <h4>Clinical Scores</h4>
+      ${dr('Total Baseline',r.total_baseline,'mono')} ${dr('Total EOT',r.total_eot,'mono')} ${dr('% Reduction',r.pct_reduction,'mono')}
+    </div>
+    <div class="detail-section">
+      <h4>Safety & Palatability</h4>
+      ${dr('AE Occurred',r.ae_occurred)} ${dr('AE Details',r.adverse_events)} ${dr('Palatability Score',r.palatability,'mono')}
+    </div>
+    <div class="detail-section">
+      <h4>Concomitant Medications</h4>
+      ${dr('Paracetamol',r.concom_paracetamol?'Yes':'No')} ${dr('CPM',r.concom_cpm?'Yes':'No')} ${dr('Bronchodilator',r.concom_broncho?'Yes':'No')} ${dr('Nasal Drops',r.concom_nasal?'Yes':'No')} ${dr('Ear Drops',r.concom_ear?'Yes':'No')} ${dr('Other',r.concomitant_other)}
+    </div>
+    <button class="btn btn-danger" onclick="deleteRecord('${r.id}')" style="margin-top:8px">🗑 Delete Record</button>
+  `;
+  document.getElementById('detailPanel').classList.add('open');
+}
+function dr(label,val,cls=''){return `<div class="detail-row"><span class="dl">${label}</span><span class="dv ${cls}">${val||'—'}</span></div>`;}
+function closeDetail(){document.getElementById('detailPanel').classList.remove('open');}
+
+// ── DELETE ──
+async function deleteRecord(id){
+  if(!confirm('Delete this record? This cannot be undone.'))return;
+  try{
+    await fetch(`${SUPABASE_URL}/rest/v1/crf_submissions?id=eq.${id}`,{
+      method:'DELETE',headers:{'apikey':SUPABASE_ANON,'Authorization':`Bearer ${SUPABASE_ANON}`}
+    });
+    closeDetail();loadData();showToast('Record deleted','success');
+  }catch(e){showToast('Delete failed: '+e.message);}
+}
+
+// ── EXPORT ALL ──
+function exportAllCSV(){
+  if(!allData.length){showToast('No data to export');return;}
+  const headers=Object.keys(allData[0]);
+  const rows=[headers,...allData.map(r=>headers.map(h=>`"${String(r[h]||'').replace(/"/g,'""')}"`)].map(r=>r.join(','));
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([rows.join('\n')],{type:'text/csv'}));
+  a.download=`CRF_All_Export_${new Date().toISOString().slice(0,10)}.csv`;a.click();
+  showToast('All data exported as CSV','success');
+}
+
+function showToast(msg,type='',dur=3000){const t=document.getElementById('toast');t.textContent=msg;t.className='show '+(type||'');setTimeout(()=>t.className='',dur);}
+</script>
+</body>
+</html>

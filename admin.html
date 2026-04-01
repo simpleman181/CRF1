@@ -478,7 +478,7 @@ async function deleteRecord(id){
 function exportAllCSV(){
   if(!allData.length){showToast('No data to export');return;}
   const headers=Object.keys(allData[0]);
-  const rows=[headers,...allData.map(r=>headers.map(h=>`"${String(r[h]||'').replace(/"/g,'""')}"`)].map(r=>r.join(','));
+  const rows=[headers,...allData.map(r=>headers.map(h=>`"${String(r[h]||'').replace(/"/g,'""')}"`))].map(r=>r.join(','));
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([rows.join('\n')],{type:'text/csv'}));
   a.download=`CRF_All_Export_${new Date().toISOString().slice(0,10)}.csv`;a.click();
   showToast('All data exported as CSV','success');
